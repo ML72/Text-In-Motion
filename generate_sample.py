@@ -3,118 +3,10 @@ import numpy as np
 import os
 import pickle
 import time
-import torch
-import imageio
-import pyrender
 import smplx
-import trimesh
-import trimesh.transformations as tra
-from tqdm import tqdm
-from scipy.spatial.transform import Rotation as R_scipy
 from scipy.signal import savgol_filter
-
-def interpolate_pose(p1, p2, alpha):
-    # Use proper spherical linear interpolation (SLERP) for joint rotations 
-    # to prevent limbs from collapsing or contorting into inhuman shapes.
-    r1 = R_scipy.from_rotvec(p1.reshape(-1, 3))
-    r2 = R_scipy.from_rotvec(p2.reshape(-1, 3))
-    
-    # Compute relative rotation, scale its angle by alpha, and apply to r1
-    r_rel = r1.inv() * r2
-    r_interp = r1 * R_scipy.from_rotvec(r_rel.as_rotvec() * alpha)
-    return r_interp.as_rotvec().flatten()
-
-def interpolate_trans_vel(v1, v2, alpha):
-    return (1 - alpha) * v1 + alpha * v2
-
-def physics_contact_fix(poses, trans, body_model):
-    """
-    Standard physics post-processing to eliminate foot sliding and height drifting.
-    Detects foot contacts using velocity, and interpolates a height correction
-    across the sequence to keep the planted foot exactly over the ground (Y=0),
-    while preserving the relative height of jumps.
-    """
-    print("Running physics post-processing (Grounding/Foot-lock)...")
-    poses_tensor = torch.tensor(poses, dtype=torch.float32)
-    trans_tensor = torch.tensor(trans, dtype=torch.float32)
-    num_frames = poses_tensor.shape[0]
-
-    # Process in chunks if memory is limited, but 1000 frames is small enough for SMPL
-    output = body_model(
-        global_orient=poses_tensor[:, :3],
-        body_pose=poses_tensor[:, 3:],
-        transl=trans_tensor
-    )
-    
-    # Get joints and vertices
-    joints = output.joints.detach().numpy()
-    vertices = output.vertices.detach().numpy()
-    
-    # joint indices: 7=L_Ankle, 8=R_Ankle, 10=L_Foot, 11=R_Foot
-    foot_joints = joints[:, [7, 8, 10, 11], :]
-    
-    # Calculate velocities
-    foot_vels = np.linalg.norm(np.diff(foot_joints, axis=0), axis=-1)
-    foot_vels = np.vstack([foot_vels[0:1], foot_vels]) # pad first frame
-    
-    # Find the lowest vertex at each frame for absolute ground collision
-    min_mesh_y = np.min(vertices[:, :, 1], axis=1)
-    
-    # Contact heuristic: If 1) any foot velocity is near 0 AND 2) it is near the bottom
-    min_vel = np.min(foot_vels, axis=1)
-    in_contact = min_vel < 0.02
-    
-    if np.sum(in_contact) == 0:
-        return trans # Unlikely for a dance, but fallback
-
-    contact_indices = np.where(in_contact)[0]
-    corrections = np.zeros(num_frames)
-    
-    # Correction places the lowest point of the mesh on the floor (Y=0)
-    # The lowest point is usually the sole of the planted foot or the toe.
-    for idx in contact_indices:
-        corrections[idx] = -min_mesh_y[idx]
-        
-    # Interpolate corrections across jump frames smoothly
-    interp_corrections = np.interp(np.arange(num_frames), contact_indices, corrections[contact_indices])
-    
-    # Low-pass filter the correction to avoid sudden snaps
-    if len(interp_corrections) > 31:
-        interp_corrections = savgol_filter(interp_corrections, 31, 3)
-        
-    fixed_trans = np.copy(trans)
-    fixed_trans[:, 1] += interp_corrections
-    return fixed_trans.tolist()
-
-def smooth_poses_quaternion(poses_np, window_length, polyorder):
-    """
-    Applies Savitzky-Golay filter on quaternion representations of the poses
-    instead of raw rotation vectors. Raw rotation vectors suffer from Gimbal Lock
-    and 2*pi discontinuities (where interpolating from 3.14 to -3.14 passes
-    through 0 instead of taking the shortest path), which severely contorts the mesh.
-    """
-    num_frames = poses_np.shape[0]
-    num_joints = poses_np.shape[1] // 3
-    
-    # Convert rotation vectors to quaternions: (N, 24, 4)
-    r = R_scipy.from_rotvec(poses_np.reshape(-1, 3))
-    quats = r.as_quat().reshape(num_frames, num_joints, 4)
-    
-    # Align hemispheres: q and -q represent the same rotation. 
-    # If the quaternion flips signs between frames, the linear filter will interpolate through 0.
-    for i in range(1, num_frames):
-        dot_products = np.sum(quats[i] * quats[i-1], axis=-1, keepdims=True)
-        quats[i] = np.where(dot_products < 0, -quats[i], quats[i])
-        
-    # Safely filter the continuous quaternion representations
-    quats_filtered = savgol_filter(quats, window_length, polyorder, axis=0)
-    
-    # Re-normalize quaternions to ensure they remain valid rotations
-    quats_filtered /= np.linalg.norm(quats_filtered, axis=-1, keepdims=True)
-    
-    # Convert back to rotation vectors for SMPL
-    r_filtered = R_scipy.from_quat(quats_filtered.reshape(-1, 4))
-    return r_filtered.as_rotvec().reshape(num_frames, poses_np.shape[1])
+from tqdm import tqdm
+from util.motion import interpolate_pose, interpolate_trans_vel, physics_contact_fix, smooth_poses_quaternion
 
 def generate_motion(num_frames, run_name):
     print("Loading indexed data...")
@@ -172,7 +64,7 @@ def generate_motion(num_frames, run_name):
     pbar = tqdm(total=num_frames, desc="Generating motion sequence")
     frames_generated = 1
     
-    search_interval = 5 # Start searching more frequently for unique dances
+    search_interval = 30 # Increased to stitch longer sequences together
     frames_since_last_jump = 0
 
     while frames_generated < num_frames:
@@ -232,28 +124,57 @@ def generate_motion(num_frames, run_name):
         pose_dist = np.linalg.norm(gen_poses[-1] - next_pose)
         
         if pose_dist > pose_threshold and chosen_idx != target_idx:
-            num_interp = 8 # Increase transition window for smooth inertial blending
+            num_interp = 10 # Increase transition window for smooth inertial blending
+            
+            # Industry Standard: Inertial Blending
+            # Instead of standard crossfading which blurs movement, we immediately snap to the 
+            # new animation clip and advance it, while applying a mathematically decaying 
+            # offset from the old posture. This preserves the absolute velocities and high-frequency 
+            # details (like foot plants) of the new clip!
+            can_interp = True
             for i in range(1, num_interp + 1):
-                alpha = i / (num_interp + 1)
-                # Apply an ease-in-out spherical decay to make the transition less linear
-                smooth_alpha = alpha * alpha * (3 - 2 * alpha)
+                if not (chosen_idx + i < len(poses) and valid_mask[chosen_idx + i - 1]):
+                    can_interp = False
+                    break
+            
+            if can_interp:
+                source_pose = gen_poses[-1]
+                source_trans_y = current_absolute_trans[1]
+                source_vel = trans_vel[curr_idx].copy()
                 
-                interp_p = interpolate_pose(gen_poses[-1], next_pose, smooth_alpha)
-                interp_v = interpolate_trans_vel(trans_vel[curr_idx], trans_vel[chosen_idx], smooth_alpha)
-                
-                # Accumulate X/Z, but directly interpolate the absolute Y (height)
-                # to prevent floating/sinking over time across jumps.
-                current_absolute_trans[0] += interp_v[0]
-                current_absolute_trans[2] += interp_v[2]
-                current_absolute_trans[1] = (1 - alpha) * trans[curr_idx][1] + alpha * trans[chosen_idx][1]
-                
-                gen_poses.append(interp_p)
-                gen_trans.append(current_absolute_trans.copy())
-                
-                frames_generated += 1
-                pbar.update(1)
+                for i in range(1, num_interp + 1):
+                    # Alpha decays from 1.0 (source) down to 0.0 (target)
+                    alpha = 1.0 - (i / (num_interp + 1))
+                    
+                    # Fast Quintic ease-out decay to quickly restore the target animation's gait
+                    decay = alpha ** 3 
+                    
+                    new_p = poses[chosen_idx + i]
+                    # Interpolate from target back towards source by the decay amount
+                    interp_p = interpolate_pose(new_p, source_pose, decay)
+                    
+                    new_v = trans_vel[chosen_idx + i]
+                    interp_v = new_v + (source_vel - new_v) * decay
+                    
+                    # Accumulate X/Z, but directly interpolate the absolute Y (height)
+                    current_absolute_trans[0] += interp_v[0]
+                    current_absolute_trans[2] += interp_v[2]
+                    
+                    target_y = trans[chosen_idx + i][1]
+                    current_absolute_trans[1] = target_y + (source_trans_y - target_y) * decay
+                    
+                    gen_poses.append(interp_p)
+                    gen_trans.append(current_absolute_trans.copy())
+                    
+                    frames_generated += 1
+                    pbar.update(1)
+                    if frames_generated >= num_frames:
+                        break
+                        
+                curr_idx = chosen_idx + num_interp
                 if frames_generated >= num_frames:
                     break
+                continue
                     
         if frames_generated >= num_frames:
             break
@@ -308,82 +229,8 @@ def generate_motion(num_frames, run_name):
     print(f"Saved motion data to {pkl_out}")
 
     # Visualizer
-    print("Rendering video...")
-    try:
-        body_model = smplx.create("models", model_type='smpl', gender='neutral', batch_size=1)
-    except Exception as e:
-        print("Visualization skipped. Could not load SMPL models.")
-        print(f"Error: {e}")
-        return
-
-    os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
-    
-    scene = pyrender.Scene(ambient_light=(0.5, 0.5, 0.5))
-    camera = pyrender.PerspectiveCamera(yfov=np.pi / 3.0)
-    rotation = tra.rotation_matrix(np.radians(-20 * np.pi / 180), [1, 0, 0])
-    camera_pose = np.eye(4) @ rotation
-    camera_pose[1, 3] = 1.0
-    camera_pose[2, 3] = 3.0
-    cam_node = scene.add(camera, pose=camera_pose)
-
-    light = pyrender.DirectionalLight(color=np.ones(3), intensity=3.0)
-    light_node = scene.add(light, pose=camera_pose)
-
-    # Add ground guide lines for better motion perception
-    try:
-        import trimesh.creation
-        sm_cyls = []
-        for x in np.arange(-10, 11, 1):
-            cyl = trimesh.creation.cylinder(radius=0.01, height=20.0)
-            # Cylinder is along Z by default, just translate along X
-            cyl.apply_translation([x, 0, 0])
-            sm_cyls.append(cyl)
-        for z in np.arange(-10, 11, 1):
-            cyl = trimesh.creation.cylinder(radius=0.01, height=20.0)
-            # Rotate 90 degrees around Y to point along X, then translate along Z
-            cyl.apply_transform(tra.rotation_matrix(np.pi/2, [0, 1, 0]))
-            cyl.apply_translation([0, 0, z])
-            sm_cyls.append(cyl)
-        grid_mesh = trimesh.util.concatenate(sm_cyls)
-        
-        material = pyrender.MetallicRoughnessMaterial(
-            baseColorFactor=[0.5, 0.5, 0.5, 1.0], 
-            metallicFactor=0.0, 
-            roughnessFactor=1.0)
-        grid_mesh_node = pyrender.Mesh.from_trimesh(grid_mesh, material=material, smooth=False)
-        scene.add(grid_mesh_node)
-    except Exception as e:
-        print(f"Skipping grid generation: {e}")
-
-    renderer = pyrender.OffscreenRenderer(viewport_width=800, viewport_height=800)
-    writer = imageio.get_writer(mp4_out, fps=60)
-    
-    for i in tqdm(range(len(gen_poses)), desc="Rendering frames"):
-        pose = torch.tensor(gen_poses[i:i+1], dtype=torch.float32)
-        trans = torch.tensor(gen_trans[i:i+1], dtype=torch.float32)
-
-        global_orient = pose[:, :3]
-        body_pose = pose[:, 3:]
-
-        output = body_model(global_orient=global_orient,
-                            body_pose=body_pose,
-                            transl=trans)
-
-        vertices = output.vertices.detach().cpu().numpy().squeeze()
-        faces = body_model.faces
-
-        mesh = trimesh.Trimesh(vertices, faces)
-        mesh_node = pyrender.Mesh.from_trimesh(mesh, smooth=True)
-
-        node = scene.add(mesh_node)
-        color, _ = renderer.render(scene)
-        writer.append_data(color)
-        scene.remove_node(node)
-
-    writer.close()
-    renderer.delete()
-    print(f"Saved visualization to {mp4_out}")
-
+    from util.render import render_animation
+    render_animation(gen_poses, gen_trans, mp4_out)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate classical motion-matching dances")
