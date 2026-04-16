@@ -213,10 +213,11 @@ def generate_motion(num_frames, run_name):
         print(f"Skipping physics post-processing: Could not apply foot contacts. Ground truth SMPL models may be missing or incompatible batch size. Error: {e}")
 
     # Create export directory
-    os.makedirs("results", exist_ok=True)
-    pkl_out = os.path.join("results", f"{run_name}.pkl")
-    mp4_out = os.path.join("results", f"{run_name}.mp4")
-    
+    results_dir = os.path.join("results", "samples")
+    os.makedirs(results_dir, exist_ok=True)
+    pkl_out = os.path.join(results_dir, f"{run_name}.pkl")
+    mp4_out = os.path.join(results_dir, f"{run_name}.mp4")
+
     # Save standard AIST++ dictionary
     output_dict = {
         'smpl_poses': np.array(gen_poses),
