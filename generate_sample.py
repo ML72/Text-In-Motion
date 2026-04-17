@@ -155,6 +155,12 @@ def generate_motion(num_frames, run_name, dna_string=None):
             if frames_since_jump >= 30 or forced_jump:
                 dist = compute_mm_dist(target_idx) if not forced_jump else compute_mm_dist(curr_idx)
                 
+                # Apply novelty penalty to avoid repetitive loops
+                novelty_penalty = np.zeros_like(dist)
+                for i, r in enumerate(reversed(executed_dna[-20:])):
+                    novelty_penalty[codebook_tokens == r] += 5.0 / (i + 1)
+                dist += novelty_penalty
+                
                 dist[~valid_mask] = np.inf
                 dist[codebook_tokens == -1] = np.inf
                 dist[codebook_tokens == current_region] = np.inf
