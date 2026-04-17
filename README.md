@@ -59,3 +59,16 @@ To build the searchable database of motions, the system first creates a unified 
 **Output:**
 - The combined motion index is saved to `data/index/motion_index.npz`, containing the concatenated SMPL `poses` and `trans` for all dataset frames, along with `file_indices` and `frame_indices` to map each frame back to its original source file and local frame number.
 - The codebook is saved to `data/index/codebook.npz`. Every valid frame receives an integer token `0-255` reflecting its motion behavior cluster. The final `W-1` (default 19) frames of any isolated clip are marked with a token of `-1`, signifying that they lack sufficient future frames to construct a full behavioral window. The downstream engine ignores these `-1` frames as selectable transitional targets.
+
+### Plausibility Graph Construction
+
+The plausibility graph is generated using `create_plausibilities.py`. This graph encodes the physical plausibility of transitions between codebook regions. Each node represents a codebook region, and edges are weighted by the cost of transitioning between regions based on motion continuity metrics. This graph is critical for ensuring smooth transitions during guided generation (Mode B) and is saved as `data/index/plausibility_graph.pkl`.
+
+### Sample Generation
+
+The sample generation step (`generate_sample.py`) operates in two modes using motion matching and an offline plausibility graph:
+
+* **Mode A (Autonomous Exploration):** The engine starts at a random valid frame and plays the motion. To maintain temporal consistency, it locks playback for a minimum of 30 frames. After this period, it searches the entire database to find the lowest-cost transition to a new sequence, continuously creating a novel, unbounded dance routine.
+* **Mode B (Guided Generation):** The engine follows a user-provided "DNA" target sequence, represented as a list of codebook regions. It seamlessly transitions to the requested regions. If a direct transition to the next requested region is physically implausible within the search window, the system performs a safe jump and uses Dijkstra's algorithm on the precomputed plausibility graph (`create_plausibilities.py`) to inject bridge regions, dynamically routing the choreography back to the user's intended DNA sequence.
+
+In both modes, the final output includes a 3D rendered video, raw pose data, and a `run_data.json` file logging the exact sequence of regions executed.
