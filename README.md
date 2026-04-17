@@ -35,17 +35,32 @@ Follow these steps to set up the environment and prepare the data:
    python create_codebook.py
    ```
 
+6. **Create the Plausibilities Graph:**
+   Create the graph of transition plausibilities by running:
+   ```bash
+   python create_plausibilities.py
+   ```
+
 ## Generating Dance Routines
 
-Once your setup is complete and the index is created, you can generate new dance samples by running:
+Once your setup is complete and the index is created, you can generate new dance samples in two ways:
 
+**Mode A (Autonomous Exploration):**
+Generate a random sequence of a given length:
 ```bash
 python generate_sample.py --num_frames 1000
 ```
 
-The generated samples will be saved in the `results/` directory. Each generated routine produces two files:
+**Mode B (Guided Generation):**
+Guide generation through specific codebook regions using a DNA sequence (a comma-separated string of region IDs):
+```bash
+python generate_sample.py --dna "114, 12, 125, 140, 57"
+```
+
+The generated samples will be saved in the `results/` directory. Each generated routine produces three files:
 - A move sequence file (`.pkl`)
 - A video visualization (`.mp4`)
+- A run data file (`.json`)
 
 ## How This Works
 

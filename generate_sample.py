@@ -298,6 +298,11 @@ def generate_motion(num_frames, run_name, dna_string=None):
         gen_poses_np = smooth_poses_quaternion(gen_poses_np, window_length, 3)
         gen_trans_np = savgol_filter(gen_trans_np, window_length, 3, axis=0)
         
+    # Translate entire sequence so the dancer always starts at the origin (0, y, 0)
+    # This prevents the camera from getting too close or too far away depending on dataset coordinate
+    gen_trans_np[:, 0] -= gen_trans_np[0, 0]
+    gen_trans_np[:, 2] -= gen_trans_np[0, 2]
+
     gen_poses = gen_poses_np.tolist()
     gen_trans = gen_trans_np.tolist()
 
@@ -313,10 +318,10 @@ def generate_motion(num_frames, run_name, dna_string=None):
     mp4_out = os.path.join(results_dir, "dance_visualization.mp4")
     json_out = os.path.join(results_dir, "run_data.json")
 
-    input_dna = None if mode == "A" else [int(x.strip()) for x in dna_string.split(',')]
+    input_dna = None if mode == "A" else ",".join(str(x.strip()) for x in dna_string.split(',') if x.strip())
     run_data = {
         "input_dna": input_dna,
-        "executed_dna": executed_dna,
+        "executed_dna": ",".join(str(x) for x in executed_dna),
         "frame_data": gen_metadata
     }
     with open(json_out, 'w') as f:

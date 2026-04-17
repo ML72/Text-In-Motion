@@ -20,7 +20,7 @@ def render_animation(gen_poses, gen_trans, mp4_out):
     os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
     
     scene = pyrender.Scene(ambient_light=(0.5, 0.5, 0.5))
-    camera = pyrender.PerspectiveCamera(yfov=np.pi / 3.0)
+    camera = pyrender.PerspectiveCamera(yfov=np.pi / 3.0)  # Wider FOV to zoom out
     rotation = tra.rotation_matrix(np.radians(-20 * np.pi / 180), [1, 0, 0])
     camera_pose = np.eye(4) @ rotation
     camera_pose[1, 3] = 1.0
@@ -62,6 +62,33 @@ def render_animation(gen_poses, gen_trans, mp4_out):
     for i in tqdm(range(len(gen_poses)), desc="Rendering frames"):
         pose = torch.tensor(gen_poses[i:i+1], dtype=torch.float32)
         trans = torch.tensor(gen_trans[i:i+1], dtype=torch.float32)
+
+        dancer_x = gen_trans[i][0]
+        dancer_y = gen_trans[i][1]
+        dancer_z = gen_trans[i][2]
+        
+        dx = dancer_x - 0.0
+        dz = dancer_z - 3.0
+        # Camera looks down -Z in its local frame.
+        # R_y * [0, 0, -1]^T = [-sin(theta), 0, -cos(theta)]^T
+        # We want this to be proportional to [dx, 0, dz]
+        # so sin(theta) = -dx, cos(theta) = -dz
+        pan_angle = np.arctan2(-dx, -dz)
+        
+        # Keep vertical angle constant to prevent jitter (0 degrees centers around the pelvis)
+        tilt_angle = np.radians(0)
+        
+        pan_rotation = tra.rotation_matrix(pan_angle, [0, 1, 0])
+        tilt_rotation = tra.rotation_matrix(tilt_angle, [1, 0, 0])
+        
+        new_camera_pose = np.eye(4)
+        # Apply pan (yaw) then tilt (pitch) 
+        new_camera_pose = pan_rotation @ tilt_rotation
+        new_camera_pose[0, 3] = 0.0
+        new_camera_pose[1, 3] = 1.0
+        new_camera_pose[2, 3] = 3.0
+        scene.set_pose(cam_node, pose=new_camera_pose)
+        scene.set_pose(light_node, pose=new_camera_pose)
 
         global_orient = pose[:, :3]
         body_pose = pose[:, 3:]
