@@ -60,7 +60,7 @@ def create_plausibilities(args):
     
     # Fast sampling approach
     np.random.seed(42)
-    max_source_samples = 200  # Number of sequences to forward-simulate per region
+    max_source_samples = args.max_source_samples  # Number of sequences to forward-simulate per region
     
     # 4. Extract global feature vectors for fast L2 matrix operations
     # Combine the weights directly into the feature vectors so simple L2 distance works implicitly
@@ -102,7 +102,7 @@ def create_plausibilities(args):
             if not frames_B:
                 continue
                 
-            num_samples = min(args.num_candidates, len(frames_B))
+            num_samples = min(args.max_target_samples, len(frames_B))
             candidates_j = np.random.choice(frames_B, num_samples, replace=False)
             feat_B_candidates = global_features[candidates_j]  # [C, Feature_Dim]
             
@@ -112,9 +112,15 @@ def create_plausibilities(args):
             from scipy.spatial.distance import cdist
             dist_matrix = cdist(feat_A_windows, feat_B_candidates, metric='sqeuclidean')
             
-            best_cost = np.min(dist_matrix)
-            if best_cost <= args.max_plausible_cost:
-                graph[int(reg_A)][int(reg_B)] = float(best_cost)
+            # For each sampled source frame, find the best landing spot
+            min_dists = np.min(dist_matrix, axis=1)
+            valid_sources = min_dists <= args.max_plausible_cost
+            valid_ratio = np.mean(valid_sources)
+            
+            if valid_ratio >= args.min_valid_source_ratio:
+                # Store the average cost of the VALID transitions as the edge weight
+                avg_valid_cost = np.mean(min_dists[valid_sources])
+                graph[int(reg_A)][int(reg_B)] = float(avg_valid_cost)
                 
     # 5. Save the Graph
     os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
@@ -135,8 +141,10 @@ if __name__ == "__main__":
     # Engine simulation and transition pruning parameters
     parser.add_argument("--fast_forward_frames", type=int, default=30, help="Frames played before allowing a jump search (respects 30-frame lock)")
     parser.add_argument("--transition_window_size", type=int, default=15, help="Simulation transition search window")
-    parser.add_argument("--num_candidates", type=int, default=100, help="Number of random candidate transition targets per region")
-    parser.add_argument("--max_plausible_cost", type=float, default=6.0, help="Max standard MM cost before edge is considered an 'impossible' glitch transition")
+    parser.add_argument("--min_valid_source_ratio", type=float, default=0.5, help="Minimum percentage (0-1) of source frames that must have a valid landing spot to draw a graph edge")
+    parser.add_argument("--max_plausible_cost", type=float, default=4.0, help="Max standard MM cost before edge is considered an 'impossible' glitch transition")
+    parser.add_argument("--max_source_samples", type=int, default=300, help="Number of sequences to forward-simulate per region")
+    parser.add_argument("--max_target_samples", type=int, default=200, help="Number of random candidate transition targets per region")
     
     args = parser.parse_args()
     create_plausibilities(args)

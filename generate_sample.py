@@ -26,7 +26,7 @@ def dijkstra_shortest_path(graph, start, target):
                     heapq.heappush(queue, (cost + weight, neighbor, path + [neighbor]))
     return []
 
-def generate_motion(num_frames, run_name, dna_string=None):
+def generate_motion(num_frames, run_name, dna_string=None, input_text=None):
     print("Loading indexed data...")
     index_path = os.path.join("data", "index", "motion_index.npz")
     if not os.path.exists(index_path):
@@ -75,8 +75,17 @@ def generate_motion(num_frames, run_name, dna_string=None):
         traj_array[valid_traj_mask] = shifted_trans[valid_traj_mask] - trans[valid_traj_mask]
         traj_array[~valid_traj_mask] = trans_vel[~valid_traj_mask] * offset
 
-    MAX_PLAUSIBLE_COST = 6.0
+    MAX_PLAUSIBLE_COST = 4.0
     
+    # Precompute region reference poses for graceful fallbacks
+    print("Computing region reference poses...")
+    region_centers = {}
+    for r in np.unique(codebook_tokens):
+        if r != -1:
+            region_mask = (codebook_tokens == r) & valid_mask
+            if np.any(region_mask):
+                region_centers[r] = np.mean(poses[region_mask], axis=0)
+
     gen_poses = []
     gen_trans = []
     gen_metadata = []
@@ -86,7 +95,12 @@ def generate_motion(num_frames, run_name, dna_string=None):
 
     mode = "A"
     dna_queue = []
-    if dna_string:
+    if input_text is not None:
+        mode = "C"
+        input_text = input_text.strip()
+        dna_queue = list(input_text.encode('utf-8'))
+        print(f"Mode C: Text Guided Generation. Target DNA: {dna_queue}")
+    elif dna_string:
         mode = "B"
         dna_queue = [int(x.strip()) for x in dna_string.split(',') if x.strip()]
         print(f"Mode B: Guided Generation. Target DNA: {dna_queue}")
@@ -139,7 +153,7 @@ def generate_motion(num_frames, run_name, dna_string=None):
     while True:
         if mode == "A" and frames_generated >= num_frames:
             break
-        if mode == "B" and len(dna_queue) == 0:
+        if mode in ["B", "C"] and len(dna_queue) == 0:
             break
             
         target_idx = curr_idx + 1
@@ -165,16 +179,28 @@ def generate_motion(num_frames, run_name, dna_string=None):
                 dist[codebook_tokens == -1] = np.inf
                 dist[codebook_tokens == current_region] = np.inf
                 
-                best_idx = np.argmin(dist)
-                min_cost = dist[best_idx]
-                
-                if forced_jump or min_cost < MAX_PLAUSIBLE_COST:
-                    chosen_idx = best_idx
-                    current_region = int(codebook_tokens[chosen_idx])
-                    executed_dna.append(current_region)
-                    frames_since_jump = 0
-                    jumped = True
-        elif mode == "B":
+                sort_idx = np.argsort(dist)
+                found_good = False
+                for i in range(min(10, len(sort_idx))):
+                    candidate_idx = sort_idx[i]
+                    candidate_cost = dist[candidate_idx]
+                    
+                    if candidate_cost == np.inf:
+                        break
+                        
+                    if (forced_jump and candidate_cost != np.inf and i == 0) or candidate_cost < MAX_PLAUSIBLE_COST:
+                        cand_pose = poses[candidate_idx]
+                        pose_dist = np.linalg.norm(gen_poses[-1] - cand_pose)
+                        
+                        if pose_dist <= pose_threshold or (forced_jump and i == 0):
+                            chosen_idx = candidate_idx
+                            current_region = int(codebook_tokens[chosen_idx])
+                            executed_dna.append(current_region)
+                            frames_since_jump = 0
+                            jumped = True
+                            found_good = True
+                            break
+        elif mode in ["B", "C"]:
             T_next = dna_queue[0]
             
             if 30 <= frames_since_jump <= 60 or forced_jump:
@@ -183,17 +209,32 @@ def generate_motion(num_frames, run_name, dna_string=None):
                 dist[~valid_mask] = np.inf
                 dist[codebook_tokens != T_next] = np.inf
                 
-                best_idx = np.argmin(dist)
-                min_cost = dist[best_idx]
-                
-                if (forced_jump and min_cost != np.inf) or min_cost < MAX_PLAUSIBLE_COST:
-                    chosen_idx = best_idx
-                    current_region = int(codebook_tokens[chosen_idx])
-                    executed_dna.append(T_next)
-                    dna_queue.pop(0)
-                    frames_since_jump = 0
-                    jumped = True
+                sort_idx = np.argsort(dist)
+                found_good = False
+                for i in range(min(10, len(sort_idx))):
+                    candidate_idx = sort_idx[i]
+                    candidate_cost = dist[candidate_idx]
                     
+                    if candidate_cost == np.inf:
+                        break
+                        
+                    if (forced_jump and candidate_cost != np.inf and i == 0) or candidate_cost < MAX_PLAUSIBLE_COST:
+                        cand_pose = poses[candidate_idx]
+                        pose_dist = np.linalg.norm(gen_poses[-1] - cand_pose)
+                        
+                        if pose_dist <= pose_threshold or (forced_jump and i == 0):
+                            chosen_idx = candidate_idx
+                            current_region = int(codebook_tokens[chosen_idx])
+                            executed_dna.append(T_next)
+                            dna_queue.pop(0)
+                            frames_since_jump = 0
+                            jumped = True
+                            found_good = True
+                            break
+                            
+                if not found_good:
+                    forced_jump = True
+
             if not jumped and (frames_since_jump >= 60 or forced_jump):
                 dist = compute_mm_dist(target_idx) if not forced_jump else compute_mm_dist(curr_idx)
                 
@@ -210,6 +251,39 @@ def generate_motion(num_frames, run_name, dna_string=None):
                 current_region = new_region
                 
                 path = dijkstra_shortest_path(plausibility_graph, current_region, T_next)
+                
+                # Graceful Fallback: Closest Neighbor Replacement
+                if not path and current_region != T_next:
+                    print(f"\nWarning: Target region {T_next} is unreachable. Searching for closest proxy...")
+                    best_proxy = None
+                    best_proxy_dist = np.inf
+                    
+                    if T_next in region_centers:
+                        t_next_center = region_centers[T_next]
+                        valid_nodes = list(plausibility_graph.keys())
+                        
+                        # Find the mathematically most similar region that is actually accessible from here
+                        for proxy in valid_nodes:
+                            if proxy != current_region and proxy in region_centers:
+                                dist_to_target = np.linalg.norm(region_centers[proxy] - t_next_center)
+                                
+                                if dist_to_target < best_proxy_dist:
+                                    # Verify it's reachable before committing
+                                    proxy_path = dijkstra_shortest_path(plausibility_graph, current_region, proxy)
+                                    if proxy_path:
+                                        best_proxy_dist = dist_to_target
+                                        best_proxy = proxy
+                                        path = proxy_path
+                                        
+                    if best_proxy is not None:
+                        print(f"-> Substituted {T_next} with {best_proxy} (Distance: {best_proxy_dist:.2f})")
+                        T_next = best_proxy
+                        dna_queue[0] = best_proxy  # Overwrite the unreachable token so the engine consumes the proxy instead
+                    else:
+                        print(f"-> No valid proxy found. Skipping DNA token {T_next} entirely.")
+                        dna_queue.pop(0)
+                        path = []
+
                 if path is None:
                     path = []
                 
@@ -226,7 +300,7 @@ def generate_motion(num_frames, run_name, dna_string=None):
         pose_dist = np.linalg.norm(gen_poses[-1] - next_pose)
         
         if pose_dist > pose_threshold and chosen_idx != target_idx:
-            num_interp = 10
+            num_interp = 20  # Increased from 10: more frames of interpolation for coherence
             can_interp = True
             for i in range(1, num_interp + 1):
                 if not (chosen_idx + i < len(poses) and valid_mask[chosen_idx + i - 1]):
@@ -239,8 +313,10 @@ def generate_motion(num_frames, run_name, dna_string=None):
                 source_vel = trans_vel[curr_idx].copy()
                 
                 for i in range(1, num_interp + 1):
-                    alpha = 1.0 - (i / (num_interp + 1))
-                    decay = alpha ** 3 
+                    # Use industry standard Ken Perlin's Smootherstep for C2 continuous ease-in/ease-out
+                    t = i / (num_interp + 1)
+                    t_smooth = t * t * t * (t * (t * 6 - 15) + 10)
+                    decay = 1.0 - t_smooth
                     
                     new_p = poses[chosen_idx + i]
                     interp_p = interpolate_pose(new_p, source_pose, decay)
@@ -299,7 +375,7 @@ def generate_motion(num_frames, run_name, dna_string=None):
     gen_poses_np = np.array(gen_poses)
     gen_trans_np = np.array(gen_trans)
     
-    window_length = 15
+    window_length = 31  # Increased from 15: larger moving window for silky smooth results
     if len(gen_poses_np) >= window_length:
         gen_poses_np = smooth_poses_quaternion(gen_poses_np, window_length, 3)
         gen_trans_np = savgol_filter(gen_trans_np, window_length, 3, axis=0)
@@ -324,9 +400,19 @@ def generate_motion(num_frames, run_name, dna_string=None):
     mp4_out = os.path.join(results_dir, "dance_visualization.mp4")
     json_out = os.path.join(results_dir, "run_data.json")
 
-    input_dna = None if mode == "A" else ",".join(str(x.strip()) for x in dna_string.split(',') if x.strip())
+    if mode == "A":
+        logged_dna = None
+        logged_text = None
+    elif mode == "B":
+        logged_dna = ",".join(str(x.strip()) for x in dna_string.split(',') if x.strip())
+        logged_text = None
+    else:
+        logged_dna = ",".join(str(x) for x in input_text.encode('utf-8'))
+        logged_text = input_text
+
     run_data = {
-        "input_dna": input_dna,
+        "input_text": logged_text,
+        "input_dna": logged_dna,
         "executed_dna": ",".join(str(x) for x in executed_dna),
         "frame_data": gen_metadata
     }
@@ -354,11 +440,18 @@ if __name__ == "__main__":
     
     default_name = f"sample_{time.strftime('%Y%m%d_%H%M%S')}"
     parser.add_argument("--run_name", type=str, default=default_name, help="Run name suffix")
-    parser.add_argument("--dna", type=str, default=None, help="Comma separated Codebook Regions (Mode B only)")
+    parser.add_argument("--input_dna", type=str, default=None, help="Comma separated Codebook Regions (Mode B only)")
+    parser.add_argument("--input_text", type=str, default=None, help="String to guide generation (Mode C only)")
     
     args = parser.parse_args()
     
-    if args.dna is not None and '--num_frames' in sys.argv:
-        parser.error("Cannot specify both --num_frames and --dna simultaneously. --num_frames is for Mode A, --dna is for Mode B.")
+    provided_args = sum([
+        '--num_frames' in sys.argv,
+        args.input_dna is not None,
+        args.input_text is not None
+    ])
+    
+    if provided_args > 1:
+        parser.error("Cannot specify more than one of --num_frames, --input_dna, or --input_text simultaneously. These options are mutually exclusive (Modes A, B, and C).")
         
-    generate_motion(args.num_frames, args.run_name, args.dna)
+    generate_motion(args.num_frames, args.run_name, args.input_dna, args.input_text)
