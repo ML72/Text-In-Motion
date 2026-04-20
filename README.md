@@ -1,4 +1,4 @@
-# Autonomous Dance Identity
+# Text In Motion
 
 This codebase provides a framework for generating new dance routines using motion matching on the AIST++ dataset.
 
@@ -21,7 +21,13 @@ Follow these steps to set up the environment and prepare the data:
 
 3. **Prepare the Data and Models:**
    - Ensure your AIST++ dataset is located inside the `data/motions/` folder. This step should already be done, just confirm that `data/motions/` is populated.
-   - Download the SMPL models (Male, Female, and Neutral) from the [official SMPL website](https://smpl.is.tue.mpg.de/) and place the `.npz` files inside the `models/smpl/` folder.
+   - Download the SMPL models (Male, Female, and Neutral) from the [official SMPL website](https://smpl.is.tue.mpg.de/) and place them inside the `models/smpl/` folder. Ensure the following 6 files are present in the directory so the scripts can properly load all genders and metadata:
+     - `SMPL_FEMALE.npz`
+     - `SMPL_FEMALE.pkl`
+     - `SMPL_MALE.npz`
+     - `SMPL_MALE.pkl`
+     - `SMPL_NEUTRAL.npz`
+     - `SMPL_NEUTRAL.pkl`
 
 4. **Create the Motion Index:**
    Create the index of moves by running:
@@ -61,6 +67,11 @@ python generate_sample.py --input_dna "114, 12, 125, 140, 57"
 Guide generation using a string of text. The text is trimmed and converted into bytes, which directly map to codebook regions:
 ```bash
 python generate_sample.py --input_text "I love dance"
+```
+
+All modes support an optional `--gender` argument (`neutral`, `male`, or `female`) to change the body model used during rendering. For example:
+```bash
+python generate_sample.py --input_text "I love dance" --gender female
 ```
 
 The generated samples will be saved in the `results/` directory. Each generated routine produces three files:

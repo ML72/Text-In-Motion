@@ -26,7 +26,7 @@ def dijkstra_shortest_path(graph, start, target):
                     heapq.heappush(queue, (cost + weight, neighbor, path + [neighbor]))
     return []
 
-def generate_motion(num_frames, run_name, dna_string=None, input_text=None):
+def generate_motion(num_frames, run_name, dna_string=None, input_text=None, gender='neutral'):
     print("Loading indexed data...")
     index_path = os.path.join("data", "index", "motion_index.npz")
     if not os.path.exists(index_path):
@@ -431,7 +431,7 @@ def generate_motion(num_frames, run_name, dna_string=None, input_text=None):
     print(f"Saved motion data to {pkl_out}")
 
     from util.render import render_animation
-    render_animation(gen_poses, gen_trans, mp4_out)
+    render_animation(gen_poses, gen_trans, mp4_out, gender=gender)
 
 if __name__ == "__main__":
     import sys
@@ -442,6 +442,7 @@ if __name__ == "__main__":
     parser.add_argument("--run_name", type=str, default=default_name, help="Run name suffix")
     parser.add_argument("--input_dna", type=str, default=None, help="Comma separated Codebook Regions (Mode B only)")
     parser.add_argument("--input_text", type=str, default=None, help="String to guide generation (Mode C only)")
+    parser.add_argument("--gender", type=str, choices=["neutral", "male", "female"], default="neutral", help="Gender of the SMPL model to use (neutral, male, female)")
     
     args = parser.parse_args()
     
@@ -454,4 +455,4 @@ if __name__ == "__main__":
     if provided_args > 1:
         parser.error("Cannot specify more than one of --num_frames, --input_dna, or --input_text simultaneously. These options are mutually exclusive (Modes A, B, and C).")
         
-    generate_motion(args.num_frames, args.run_name, args.input_dna, args.input_text)
+    generate_motion(args.num_frames, args.run_name, args.input_dna, args.input_text, args.gender)
