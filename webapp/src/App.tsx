@@ -49,7 +49,7 @@ const App: React.FC = () => {
               Autonomous Exploration
             </Typography>
             <Typography variant='body1' sx={{ color: 'text.secondary', lineHeight: 1.8, mb: 3 }}>
-              In Autonomous Exploration mode, the generation engine operates unconstrained, continuously searching the entire motion database to synthesize novel dance routines from scratch. To ensure temporal consistency, playback remains locked for short continuous sequences before seamlessly jumping through lowest-cost transitions via our computed plausibility graph. Combined with a novelty penalty, this allows the algorithm to fluidly explore a variety of stylistic regimes, resulting in an organically smooth and indefinitely bounded choreography.
+              Autonomous exploration is where the algorithm operates unconstrained, synthesizing new dances from individual moves entirely from scratch. Drawing from a diverse library of dance styles, the choreography continuously shifts and evolves. This dynamic blending is driven by a built-in novelty penalty that naturally incentivizes the algorithm to seek out unseen frames and new movements as the performance progresses. Free from the rigid region constraints that might otherwise limit algorithmic expressivity, the resulting dance unfolds as an organically smooth, abstract art form.
             </Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2 }}>
               <video src="videos/auto_male.mp4" autoPlay loop muted playsInline controls style={{ width: '100%', borderRadius: '8px' }} />
@@ -61,10 +61,10 @@ const App: React.FC = () => {
           {/* Text Guided Exploration */}
           <Box sx={{ mb: 4 }}>
             <Typography variant='h5' component='h3' gutterBottom sx={{ color: 'primary.main', fontWeight: 500 }}>
-              Text Guided Exploration
+              Text Guided Visualization
             </Typography>
             <Typography variant='body1' sx={{ color: 'text.secondary', lineHeight: 1.8, mb: 4 }}>
-              Text Guided Exploration interprets raw UTF-8 text bytes directly as a series of quantization regions to track, imbuing each sentence with its own structural "motion DNA". Unlike traditional models that constrain movements through semantically literal keywords, our pipeline builds a discrete vocabulary and enforces a rigid target sequence. When direct transitions between these targeted characters present a high physical cost, the system utilizes Dijkstra's shortest path routing to inject bridging movements. Occasionally, rapid shifts in desired regions cause visible glitches or disjointed artistry, serving as the unique, stylistic fingerprints of the underlying prose's linguistic rhythm.
+              Text guided visualization interprets the exact UTF-8 encoding of an input text as a rigid string of quantization regions to track, effectively giving each sentence its own unique "motion DNA". While these strict textual constraints anchor the performance, they can sometimes cause abrupt glitches or unnatural transitions between distant stylistic states in the generated movements. Rather than being seen purely as artifacts, these moments can be interpreted as the unique, artistic fingerprints of the text's inherent rhythm. This approach differs from typical methods by deliberately setting aside the literal semantic meaning of words. By instead building a new discrete vocabulary and mapping it directly onto movement, our method creates an intriguing, abstract exploration of prose turning into motion.
             </Typography>
 
             <Box sx={{ mb: 4 }}>
@@ -118,7 +118,7 @@ const App: React.FC = () => {
               We extract high-dimensional raw motion features over a temporal window <InlineMath math='W' /> (defaulting to 20 frames) representing the "stylistic future" of each frame. Using the <strong>SMPL body model</strong>, we extract local behavior features including joint poses, root velocities, and foot contacts, intentionally discarding world-space position variations for translation-invariance. To produce a more robust latent representation, we apply <strong>Principal Component Analysis (PCA)</strong> to project the frame-wise motion features into a 64-dimensional space:
             </Typography>
             <Box sx={{ my: 2, overflowX: 'auto' }}>
-              <BlockMath math='f_{PCA} = W_{PCA}^T (f_{raw} - \mu)' />
+              <BlockMath math={'f_{PCA} = W_{PCA}^T (f_{raw} - \\mu)'} />
             </Box>
           </Box>
 
@@ -127,7 +127,7 @@ const App: React.FC = () => {
               2. Motion Quantization
             </Typography>
             <Typography variant='body1' sx={{ color: 'text.secondary', lineHeight: 1.8 }}>
-              Continuous 64D motion embeddings are discretized into a finite dictionary of 256 discrete regions to build a robust stylistic codebook. Using <strong>K-Means clustering</strong>, for each frame <InlineMath math='t' />, the projected vector is mapped to the nearest centroid <InlineMath math='c^{(t)}' /> within the codebook vocabulary <InlineMath math='\mathcal{C}' />.
+              Continuous 64D motion embeddings are discretized into a finite dictionary of 256 discrete regions to build a robust stylistic codebook. Using <strong>K-Means clustering</strong>, for each frame <InlineMath math={'t'} />, the projected vector is mapped to the nearest centroid <InlineMath math={'c^{(t)}'} /> within the codebook vocabulary <InlineMath math={'\\mathcal{C}'} />.
             </Typography>
           </Box>
 
@@ -139,7 +139,7 @@ const App: React.FC = () => {
               To ensure smooth transitions between discrete action states, we compute an offline dynamic transition plausibility graph. The transition likelihood is derived from edge weights based on the state similarity mapping cost between poses and velocities to enforce motion continuity:
             </Typography>
             <Box sx={{ my: 2, overflowX: 'auto' }}>
-              <BlockMath math='\text{Cost}(i, j) = \alpha \|p_i - p_j\|_2^2 + \beta \|v_i - v_j\|_2^2' />
+              <BlockMath math={'\\text{Cost}(i, j) = \\alpha \\|p_i - p_j\\|_2^2 + \\beta \\|v_i - v_j\\|_2^2'} />
             </Box>
           </Box>
 
