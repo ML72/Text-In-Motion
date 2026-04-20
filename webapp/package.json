@@ -14,11 +14,9 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^9.0.0",
     "@mui/material": "^9.0.0",
-    "@types/react-katex": "^3.0.4",
-    "katex": "^0.16.45",
+    "better-react-mathjax": "^3.0.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "react-katex": "^3.1.0"
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

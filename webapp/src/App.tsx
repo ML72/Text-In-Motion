@@ -1,11 +1,11 @@
 import React from 'react';
 import { Box, Typography, Button, Container, Divider } from '@mui/material';
 import GitHubIcon from '@mui/icons-material/GitHub';
-import { InlineMath, BlockMath } from 'react-katex';
-import 'katex/dist/katex.min.css';
+import { MathJaxContext, MathJax } from 'better-react-mathjax';
 
 const App: React.FC = () => {
   return (
+    <MathJaxContext>
     <Box sx={{ minHeight: '100vh', background: 'radial-gradient(circle at 50% 0%, #ffffff 0%, #f0f4f8 100%)', color: '#0f172a', py: 8 }}>
       <Container maxWidth='md'>
         {/* Header Section */}
@@ -115,10 +115,10 @@ const App: React.FC = () => {
               1. Feature Extraction & Dimensionality Reduction
             </Typography>
             <Typography variant='body1' sx={{ color: 'text.secondary', lineHeight: 1.8 }}>
-              We extract high-dimensional raw motion features over a temporal window <InlineMath math={String.raw`W`} /> (defaulting to 20 frames) representing the "stylistic future" of each frame. Using the <strong>SMPL body model</strong>, we extract local behavior features including joint poses, root velocities, and foot contacts, intentionally discarding world-space position variations for translation-invariance. To produce a more robust latent representation, we apply <strong>Principal Component Analysis (PCA)</strong> to project the frame-wise motion features into a 64-dimensional space:
+              We extract high-dimensional raw motion features over a temporal window <MathJax inline>{"\\(W\\)"}</MathJax> (defaulting to 20 frames) representing the "stylistic future" of each frame. Using the <strong>SMPL body model</strong>, we extract local behavior features including joint poses, root velocities, and foot contacts, intentionally discarding world-space position variations for translation-invariance. To produce a more robust latent representation, we apply <strong>Principal Component Analysis (PCA)</strong> to project the frame-wise motion features into a 64-dimensional space:
             </Typography>
             <Box sx={{ my: 2, overflowX: 'auto' }}>
-              <BlockMath math={String.raw`f_{PCA} = W_{PCA}^T (f_{raw} - \mu)`} />
+              <MathJax>{"\\[f_{PCA} = W_{PCA}^T (f_{raw} - \\mu)\\]"}</MathJax>
             </Box>
           </Box>
 
@@ -127,7 +127,7 @@ const App: React.FC = () => {
               2. Motion Quantization
             </Typography>
             <Typography variant='body1' sx={{ color: 'text.secondary', lineHeight: 1.8 }}>
-              Continuous 64D motion embeddings are discretized into a finite dictionary of 256 discrete regions to build a robust stylistic codebook. Using <strong>K-Means clustering</strong>, for each frame <InlineMath math={String.raw`t`} />, the projected vector is mapped to the nearest centroid <InlineMath math={String.raw`c^{(t)}`} /> within the codebook vocabulary <InlineMath math={String.raw`\mathcal{C}`} />.
+              Continuous 64D motion embeddings are discretized into a finite dictionary of 256 discrete regions to build a robust stylistic codebook. Using <strong>K-Means clustering</strong>, for each frame <MathJax inline>{"\\(t\\)"}</MathJax>, the projected vector is mapped to the nearest centroid <MathJax inline>{"\\(c^{(t)}\\)"}</MathJax> within the codebook vocabulary <MathJax inline>{"\\(\\mathcal{C}\\)"}</MathJax>.
             </Typography>
           </Box>
 
@@ -139,7 +139,7 @@ const App: React.FC = () => {
               To ensure smooth transitions between discrete action states, we compute an offline dynamic transition plausibility graph. The transition likelihood is derived from edge weights based on the state similarity mapping cost between poses and velocities to enforce motion continuity:
             </Typography>
             <Box sx={{ my: 2, overflowX: 'auto' }}>
-              <BlockMath math={String.raw`\text{Cost}(i, j) = \alpha \|p_i - p_j\|_2^2 + \beta \|v_i - v_j\|_2^2`} />
+              <MathJax>{"\\[\\text{Cost}(i, j) = \\alpha \\|p_i - p_j\\|_2^2 + \\beta \\|v_i - v_j\\|_2^2\\]"}</MathJax>
             </Box>
           </Box>
 
@@ -155,6 +155,7 @@ const App: React.FC = () => {
 
       </Container>
     </Box>
+    </MathJaxContext>
   );
 };
 export default App;
