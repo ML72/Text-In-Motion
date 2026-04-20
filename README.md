@@ -1,4 +1,4 @@
-# Text In Motion
+# Text in Motion: Visualizing Prose as Stylistic Dance Sequences
 
 This codebase provides a framework for generating new dance routines using motion matching on the AIST++ dataset.
 
@@ -78,6 +78,16 @@ The generated samples will be saved in the `results/` directory. Each generated 
 - A move sequence file (`.pkl`)
 - A video visualization (`.mp4`)
 - A run data file (`.json`)
+
+## Webapp
+
+This repository contains code for a website about this project. All website code is in the `webapp` folder. To interact with the website code, switch into the `webapp` directory:
+
+```bash
+cd webapp
+```
+
+Read `webapp/README.md` for instructions on how to set up and run the website locally.
 
 ## How This Works
 
