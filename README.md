@@ -79,6 +79,25 @@ The generated samples will be saved in the `results/` directory. Each generated 
 - A video visualization (`.mp4`)
 - A run data file (`.json`)
 
+## Evaluating Pipeline Metrics
+
+A benchmarking tool (`run_analysis.py`) has been added to evaluate the output against theoretical and art-science expectations.
+
+```bash
+# Run all analysis regimes (this may take a while depending on hardware)
+python run_analysis.py
+
+# Run a specific subset for debugging/iteration
+# There are 3 parts total, split by data collection needs
+python run_analysis.py --part 1
+```
+
+The script extracts stylistic uniqueness, pathfinding capabilities, and physical correctness from 10k frame datasets and offline indexes.
+- Metrics data are saved into text logs: `results/metrics/part_1.txt`, `results/metrics/part_2.txt`, etc.
+- Generating plotting charts (KDE distribution, path density histograms, UpSet-style intersection bars, etc.) which export to `results/plots/`.
+
+Note that evaluation can be slow. The full evaluation can take as long as 4 hours on a consumer level CPU.
+
 ## Webapp
 
 This repository contains code for a website about this project. All website code is in the `webapp` folder. To interact with the website code, switch into the `webapp` directory:

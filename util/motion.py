@@ -17,14 +17,14 @@ def interpolate_pose(p1, p2, alpha):
 def interpolate_trans_vel(v1, v2, alpha):
     return (1 - alpha) * v1 + alpha * v2
 
-def physics_contact_fix(poses, trans, body_model):
+def physics_contact_fix(poses, trans, body_model, verbose=True):
     """
     Standard physics post-processing to eliminate foot sliding and height drifting.
     Detects foot contacts using velocity, and interpolates a height correction
     across the sequence to keep the planted foot exactly over the ground (Y=0),
     while preserving the relative height of jumps.
     """
-    print("Running physics post-processing (Grounding/Foot-lock)...")
+    if verbose: print("Running physics post-processing (Grounding/Foot-lock)...")
     poses_tensor = torch.tensor(poses, dtype=torch.float32)
     trans_tensor = torch.tensor(trans, dtype=torch.float32)
     num_frames = poses_tensor.shape[0]

@@ -26,8 +26,8 @@ def dijkstra_shortest_path(graph, start, target):
                     heapq.heappush(queue, (cost + weight, neighbor, path + [neighbor]))
     return []
 
-def generate_motion(num_frames, run_name, dna_string=None, input_text=None, gender='neutral'):
-    print("Loading indexed data...")
+def generate_motion(num_frames, run_name, dna_string=None, input_text=None, gender='neutral', physics_algorithms_on=True, render_video=True, verbose=True):
+    if verbose: print("Loading indexed data...")
     index_path = os.path.join("data", "index", "motion_index.npz")
     if not os.path.exists(index_path):
         raise FileNotFoundError(f"Index file not found at {index_path}. Please run create_index.py first.")
@@ -54,7 +54,7 @@ def generate_motion(num_frames, run_name, dna_string=None, input_text=None, gend
     with open(graph_path, 'rb') as f:
         plausibility_graph = pickle.load(f)
         
-    print("Computing velocities and trajectories...")
+    if verbose: print("Computing velocities and trajectories...")
     valid_mask = file_indices[:-1] == file_indices[1:]
     valid_mask = np.append(valid_mask, False)
     
@@ -78,7 +78,7 @@ def generate_motion(num_frames, run_name, dna_string=None, input_text=None, gend
     MAX_PLAUSIBLE_COST = 4.0
     
     # Precompute region reference poses for graceful fallbacks
-    print("Computing region reference poses...")
+    if verbose: print("Computing region reference poses...")
     region_centers = {}
     for r in np.unique(codebook_tokens):
         if r != -1:
@@ -99,13 +99,13 @@ def generate_motion(num_frames, run_name, dna_string=None, input_text=None, gend
         mode = "C"
         input_text = input_text.strip()
         dna_queue = list(input_text.encode('utf-8'))
-        print(f"Mode C: Text Guided Generation. Target DNA: {dna_queue}")
+        if verbose: print(f"Mode C: Text Guided Generation. Target DNA: {dna_queue}")
     elif dna_string:
         mode = "B"
         dna_queue = [int(x.strip()) for x in dna_string.split(',') if x.strip()]
-        print(f"Mode B: Guided Generation. Target DNA: {dna_queue}")
+        if verbose: print(f"Mode B: Guided Generation. Target DNA: {dna_queue}")
     else:
-        print("Mode A: Autonomous Exploration.")
+        if verbose: print("Mode A: Autonomous Exploration.")
 
     def compute_mm_dist(target_idx):
         dist = np.mean((poses - poses[target_idx])**2, axis=1) + np.mean((pose_vel - pose_vel[target_idx])**2, axis=1)
@@ -146,7 +146,7 @@ def generate_motion(num_frames, run_name, dna_string=None, input_text=None, gend
     
     frames_generated = 1
 
-    pbar = tqdm(total=num_frames if mode == "A" else None, desc="Generating motion sequence")
+    pbar = tqdm(total=num_frames if mode == "A" else None, desc="Generating motion sequence", disable=not verbose)
     
     pose_threshold = 4.0
 
@@ -254,7 +254,7 @@ def generate_motion(num_frames, run_name, dna_string=None, input_text=None, gend
                 
                 # Graceful Fallback: Closest Neighbor Replacement
                 if not path and current_region != T_next:
-                    print(f"\nWarning: Target region {T_next} is unreachable. Searching for closest proxy...")
+                    if verbose: print(f"\nWarning: Target region {T_next} is unreachable. Searching for closest proxy...")
                     best_proxy = None
                     best_proxy_dist = np.inf
                     
@@ -276,11 +276,11 @@ def generate_motion(num_frames, run_name, dna_string=None, input_text=None, gend
                                         path = proxy_path
                                         
                     if best_proxy is not None:
-                        print(f"-> Substituted {T_next} with {best_proxy} (Distance: {best_proxy_dist:.2f})")
+                        if verbose: print(f"-> Substituted {T_next} with {best_proxy} (Distance: {best_proxy_dist:.2f})")
                         T_next = best_proxy
                         dna_queue[0] = best_proxy  # Overwrite the unreachable token so the engine consumes the proxy instead
                     else:
-                        print(f"-> No valid proxy found. Skipping DNA token {T_next} entirely.")
+                        if verbose: print(f"-> No valid proxy found. Skipping DNA token {T_next} entirely.")
                         dna_queue.pop(0)
                         path = []
 
@@ -371,28 +371,32 @@ def generate_motion(num_frames, run_name, dna_string=None, input_text=None, gend
         
     pbar.close()
 
-    print("Applying Savitzky-Golay filter to smooth transitions...")
+    if verbose: print("Applying Savitzky-Golay filter to smooth transitions...")
     gen_poses_np = np.array(gen_poses)
     gen_trans_np = np.array(gen_trans)
     
-    window_length = 31  # Increased from 15: larger moving window for silky smooth results
-    if len(gen_poses_np) >= window_length:
-        gen_poses_np = smooth_poses_quaternion(gen_poses_np, window_length, 3)
-        gen_trans_np = savgol_filter(gen_trans_np, window_length, 3, axis=0)
-        
-    # Translate entire sequence so the dancer always starts at the origin (0, y, 0)
-    # This prevents the camera from getting too close or too far away depending on dataset coordinate
-    gen_trans_np[:, 0] -= gen_trans_np[0, 0]
-    gen_trans_np[:, 2] -= gen_trans_np[0, 2]
+    if physics_algorithms_on:
+        window_length = 31  # Increased from 15: larger moving window for silky smooth results
+        if len(gen_poses_np) >= window_length:
+            gen_poses_np = smooth_poses_quaternion(gen_poses_np, window_length, 3)
+            gen_trans_np = savgol_filter(gen_trans_np, window_length, 3, axis=0)
+            
+        # Translate entire sequence so the dancer always starts at the origin (0, y, 0)
+        # This prevents the camera from getting too close or too far away depending on dataset coordinate
+        gen_trans_np[:, 0] -= gen_trans_np[0, 0]
+        gen_trans_np[:, 2] -= gen_trans_np[0, 2]
 
-    gen_poses = gen_poses_np.tolist()
-    gen_trans = gen_trans_np.tolist()
+        gen_poses = gen_poses_np.tolist()
+        gen_trans = gen_trans_np.tolist()
 
-    try:
-        body_model = smplx.create("models", model_type='smpl', gender='neutral', batch_size=frames_generated)
-        gen_trans = physics_contact_fix(gen_poses, gen_trans, body_model)
-    except Exception as e:
-        print(f"Skipping physics post-processing: {e}")
+        try:
+            body_model = smplx.create("models", model_type='smpl', gender=gender, batch_size=frames_generated)
+            gen_trans = physics_contact_fix(gen_poses, gen_trans, body_model, verbose=verbose)
+        except Exception as e:
+            if verbose: print(f"Skipping physics post-processing: {e}")
+    else:
+        gen_poses = gen_poses_np.tolist()
+        gen_trans = gen_trans_np.tolist()
 
     results_dir = os.path.join("results", "samples", run_name)
     os.makedirs(results_dir, exist_ok=True)
@@ -418,7 +422,7 @@ def generate_motion(num_frames, run_name, dna_string=None, input_text=None, gend
     }
     with open(json_out, 'w') as f:
         json.dump(run_data, f, indent=4)
-    print(f"Saved run data to {json_out}")
+    if verbose: print(f"Saved run data to {json_out}")
 
     output_dict = {
         'smpl_poses': np.array(gen_poses),
@@ -428,10 +432,13 @@ def generate_motion(num_frames, run_name, dna_string=None, input_text=None, gend
     
     with open(pkl_out, 'wb') as f:
         pickle.dump(output_dict, f)
-    print(f"Saved motion data to {pkl_out}")
+    if verbose: print(f"Saved motion data to {pkl_out}")
 
-    from util.render import render_animation
-    render_animation(gen_poses, gen_trans, mp4_out, gender=gender)
+    if render_video:
+        from util.render import render_animation
+        render_animation(gen_poses, gen_trans, mp4_out, gender=gender)
+        
+    return run_data, gen_poses, gen_trans
 
 if __name__ == "__main__":
     import sys
