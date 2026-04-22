@@ -1,0 +1,61 @@
+Why do programmers always mix up Halloween and Christmas?
+Because Oct 31 equals Dec 25.
+
+There are 10 types of people in the world:
+Those who understand binary, and those who don't.
+
+A SQL query walks into a bar, walks up to two tables, and asks:
+"Can I join you?"
+
+How many programmers does it take to change a lightbulb?
+None. It’s a hardware problem.
+
+An optimistic, a pessimistic, and a programmer walk into a room.
+The optimist says, "The glass is half-full!"
+The pessimist says, "The glass is half-empty!"
+The programmer says, "The glass is twice as large as it needs to be."
+
+A programmer's wife tells him: "Run to the store and pick up a loaf of bread. If they have eggs, get a dozen."
+The programmer comes home with 12 loaves of bread.
+
+Why did the programmer quit his job?
+Because he didn't get arrays (a raise).
+
+What is the most used language in programming?
+Profanity.
+
+Why do Java developers wear glasses?
+Because they don't C#.
+
+How do you tell an introverted computer scientist from an extroverted one?
+The extroverted one looks at your shoes when they talk to you.
+
+"99 little bugs in the code, 99 little bugs..."
+Take one down, patch it around, 127 little bugs in the code.
+
+Why was the function so lonely?
+Because it didn't have any arguments.
+
+What’s the object-oriented way to become wealthy?
+Inheritance.
+
+Why did the web developer walk out of the restaurant?
+The table layout was terrible.
+
+A user interface is like a joke.
+If you have to explain it, it’s not that good.
+
+What do you call a group of 8 Hobbits?
+A Hobbyte.
+
+Why was the computer cold?
+It left its Windows open.
+
+The IPv4 address walks into a bar and shouts:
+"Cidr! I need a drink!"
+
+What is a programmer's favorite hangout spot?
+The Foo Bar.
+
+Why don't bards use computers?
+They’re afraid of the "Delete" key because they can’t handle the loss of their "Ctrl."
