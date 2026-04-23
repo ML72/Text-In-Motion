@@ -25,13 +25,35 @@ const App: React.FC = () => {
 
         <Divider sx={{ borderColor: 'rgba(0,0,0,0.08)', mb: 6 }} />
 
-        {/* Overview Section */}
+        {/* Abstract Section */}
         <Box sx={{ mb: 6 }}>
           <Typography variant='h4' component='h2' gutterBottom sx={{ fontWeight: 600 }}>
-            Overview
+            Abstract
           </Typography>
           <Typography variant='body1' sx={{ color: 'text.secondary', lineHeight: 1.8 }}>
-            Our research proposes a novel approach to choreographic generation by transforming the stylistic nuances of written prose directly into synthesized dance sequences. Rather than literal mapping, such as matching the word "walk" to a forward step, we encode the cadence, sentiment, and structural rhythm of textual inputs into corresponding motion sequences. Our pipeline bridges natural language processing and motion synthesis to explore the connection between spoken language and physical expression.
+            Recent advances in generative artificial intelligence (GenAI) systems have allowed for unprecedented fidelity in synthesizing complex human motion.
+            However, current text-to-dance models rely strictly on linguistic semantics to generate movements. For example, if an input prompt or song lyric reads "raise hand", the model outputs that literal action.
+            In this work, we depart from the traditional paradigm of linguistic grounding to investigate the capacity for inherent machine creativity.
+            To this end, we develop a self-consistent and novel approach to motion synthesis that generates dance by leveraging the abstract structural properties of language rather than literal interpretation.
+            Our method first quantizes dance kinematics into a motion codebook of stylistic regions via Principal Component Analysis (PCA) and K-Means Clustering.
+            We can then treat the byte-level representation of text as a unique ``DNA fingerprint'' which directly maps to a specific sequence of codebook regions, which we can treat as a deterministic yet novel choreographic blueprint for synthesizing dance sequences.
+            To ensure fluid execution, we then evaluate physical plausibility constraints using a graph-based approach, before finally synthesizing a motion sequence adhering to the specified blueprint.
+            This framework fundamentally repositions AI from being a literal interpreter of human intent to being a procedural instrument for the algorithmic translation of abstract data into movement.
+          </Typography>
+        </Box>
+
+        <Divider sx={{ borderColor: 'rgba(0,0,0,0.08)', mb: 6 }} />
+
+        {/* Motivation Section */}
+        <Box sx={{ mb: 6 }}>
+          <Typography variant='h4' component='h2' gutterBottom sx={{ fontWeight: 600 }}>
+            Motivation
+          </Typography>
+          <Typography variant='body1' sx={{ color: 'text.secondary', lineHeight: 1.8 }}>
+            This project asks a different question: rather than being confined by semantic meaning, can we utilize text as a non-linguistic, structural "DNA fingerprint" to create a novel choreographic score?
+            By liberating text from its semantics and treating it as a literal code for a procedural art tool, we challenge the prevailing view in multimodal AI of language as a universal grounding mechanism. Semantically grounded AI often gives relatively predictable outputs constrained by the biases of training data. 
+            <br /><br />
+            By treating text as an objective raw data stream rather than linguistic intent, we provide artists with a mathematically interpretable, deterministic alternative to black-box neural networks. We seek to reposition AI not as an imitator of human history, but as an autonomous co-creator capable of evolving new, systematic artistic identities by literally transcoding arbitrary data into physical expression.
           </Typography>
         </Box>
 
@@ -49,7 +71,7 @@ const App: React.FC = () => {
               Autonomous Exploration
             </Typography>
             <Typography variant='body1' sx={{ color: 'text.secondary', lineHeight: 1.8, mb: 3 }}>
-              Autonomous exploration is where the algorithm operates unconstrained, synthesizing new dances from individual moves entirely from scratch. Drawing from a diverse library of dance styles, the choreography continuously shifts and evolves. This dynamic blending is driven by a built-in novelty penalty that naturally incentivizes the algorithm to seek out unseen frames and new movements as the performance progresses. Free from the rigid region constraints that might otherwise limit algorithmic expressivity, the resulting dance unfolds as an organically smooth, abstract art form.
+              Autonomous exploration represents a standard motion matching algorithm with no textual inputs. By sampling new sequences on the fly, it serves as a baseline that achieves high choreographic novelty but lacks the structural guidance of our text-driven approach. Driven almost entirely by random sampling, this dynamic blending generates movement phrases consistently unseen in the original data, unfolding as an organically smooth, abstract art form.
             </Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2 }}>
               <video src="videos/auto_male.mp4" autoPlay loop muted playsInline controls style={{ width: '100%', borderRadius: '8px' }} />
@@ -61,10 +83,10 @@ const App: React.FC = () => {
           {/* Text Guided Exploration */}
           <Box sx={{ mb: 4 }}>
             <Typography variant='h5' component='h3' gutterBottom sx={{ color: 'primary.main', fontWeight: 500 }}>
-              Text Guided Visualization
+              Text-Guided Generation
             </Typography>
             <Typography variant='body1' sx={{ color: 'text.secondary', lineHeight: 1.8, mb: 4 }}>
-              Text guided visualization interprets the exact UTF-8 encoding of an input text as a rigid string of quantization regions to track, effectively giving each sentence its own unique "motion DNA". While these strict textual constraints anchor the performance, they can sometimes cause abrupt glitches or unnatural transitions between distant stylistic states in the generated movements. Rather than being seen purely as artifacts, these moments can be interpreted as the unique, artistic fingerprints of the text's inherent rhythm. This approach differs from typical methods by deliberately setting aside the literal semantic meaning of words. By instead building a new discrete vocabulary and mapping it directly onto movement, our method creates an intriguing, abstract exploration of prose turning into motion.
+              Text-guided generation diverges from predictive, black-box paradigms by enforcing a direct mapping from the raw byte representation of input text directly to discrete codebook regions. Every text string becomes a deterministic and structurally unique "DNA fingerprint". Because adjacent bytes may map to biomechanically disconnected regions, our engine dynamically injects bridge regions using Dijkstra's algorithm over a precomputed plausibility graph. This routing securely connects abstract choreography blocks, forcing dynamic tempo changes and giving the text-driven dances a distinct rhythmic, kinetic signature unlike the homogeneous flow of the original dataset.
             </Typography>
 
             <Box sx={{ mb: 4 }}>
@@ -109,46 +131,58 @@ const App: React.FC = () => {
           <Typography variant='h4' component='h2' gutterBottom sx={{ fontWeight: 600 }}>
             Methodology
           </Typography>
-          
+
           <Box sx={{ mb: 4, mt: 3 }}>
             <Typography variant='h6' component='h3' gutterBottom sx={{ color: 'primary.main' }}>
-              1. Feature Extraction & Dimensionality Reduction
+              1. Data Aggregation and Standardization
             </Typography>
             <Typography variant='body1' sx={{ color: 'text.secondary', lineHeight: 1.8 }}>
-              We extract high-dimensional raw motion features over a temporal window <MathJax inline>{"\\(W\\)"}</MathJax> (defaulting to 20 frames) representing the "stylistic future" of each frame. Using the <strong>SMPL body model</strong>, we extract local behavior features including joint poses, root velocities, and foot contacts, intentionally discarding world-space position variations for translation-invariance. To produce a more robust latent representation, we apply <strong>Principal Component Analysis (PCA)</strong> to project the frame-wise motion features into a 64-dimensional space:
+              Our system aggregates human motion capture sequences represented via SMPL parametric models into a contiguous, multidimensional index. The raw parameters are flattened, and global coordinates are normalized using a subject-specific scale factor to ensure a robust, translation-invariant motion index mapped across the dataset.
             </Typography>
-            <Box sx={{ my: 2, overflowX: 'auto' }}>
-              <MathJax>{"\\[f_{PCA} = W_{PCA}^T (f_{raw} - \\mu)\\]"}</MathJax>
+          </Box>
+          
+          <Box sx={{ mb: 4 }}>
+            <Typography variant='h6' component='h3' gutterBottom sx={{ color: 'primary.main' }}>
+              2. Feature Extraction and Quantization
+            </Typography>
+            <Typography variant='body1' sx={{ color: 'text.secondary', lineHeight: 1.8 }}>
+              To establish an abstract representation of motion, we extract local relative kinematics and quantize the continuous human behavior space into a finite dictionary of stylistic regions. We apply local pose standardization and extract dynamic kinematics including local root velocities, local joint velocities, and binary foot contacts, yielding 278 features per frame. These features are then sliding-windowed into 20-frame chunks. We utilize <strong>Principal Component Analysis (PCA)</strong> to reduce the 5560 dimensions to a 64-dimensional space. Finally, <strong>K-Means clustering</strong> maps these projections to one of 256 localized centroid clusters, where every text frame is thus explicitly indexed to a motion codebook region in <MathJax inline>{"\\([0, 255]\\)"}</MathJax>.
+            </Typography>
+            <Box sx={{ mt: 3, mb: 2, textAlign: 'center' }}>
+              <img src="codebook_grid.png" alt="Sample codebook regions" style={{ maxWidth: '100%', borderRadius: '8px' }} />
+              <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary', fontStyle: 'italic' }}>
+                Randomly sampled frames from each of the first 5 codebook regions. Note that the patterns shown are not perfect, as the quantization algorithm considers more than just the pose in the starting frame, and it is also challenging to describe the entire space of plausible human motions with just 256 regions. However, we can qualitatively observe similarities between frame poses from the same codebook region.
+              </Typography>
             </Box>
           </Box>
 
           <Box sx={{ mb: 4 }}>
             <Typography variant='h6' component='h3' gutterBottom sx={{ color: 'primary.main' }}>
-              2. Motion Quantization
+              3. Plausibility Graph Construction
             </Typography>
             <Typography variant='body1' sx={{ color: 'text.secondary', lineHeight: 1.8 }}>
-              Continuous 64D motion embeddings are discretized into a finite dictionary of 256 discrete regions to build a robust stylistic codebook. Using <strong>K-Means clustering</strong>, for each frame <MathJax inline>{"\\(t\\)"}</MathJax>, the projected vector is mapped to the nearest centroid <MathJax inline>{"\\(c^{(t)}\\)"}</MathJax> within the codebook vocabulary <MathJax inline>{"\\(\\mathcal{C}\\)"}</MathJax>.
-            </Typography>
-          </Box>
-
-          <Box sx={{ mb: 4 }}>
-            <Typography variant='h6' component='h3' gutterBottom sx={{ color: 'primary.main' }}>
-              3. Plausibility Graph
-            </Typography>
-            <Typography variant='body1' sx={{ color: 'text.secondary', lineHeight: 1.8 }}>
-              To ensure smooth transitions between discrete action states, we compute an offline dynamic transition plausibility graph. The transition likelihood is derived from edge weights based on the state similarity mapping cost between poses and velocities to enforce motion continuity:
+              To govern biomechanically safe transitions between disjoint behaviors, we precompute a directed plausibility graph spanning the 256 codebook regions. An edge is defined based on a Motion Matching (MM) cost heuristic evaluating physical deviation (with a significant penalty applied to root velocity to prevent momentum shattering). We establish plausibility between regions when a valid path cost falls below a maximum threshold, saving edges iteratively evaluated from hundreds of candidate source to target frame pairings based on random sampling heuristics.
             </Typography>
             <Box sx={{ my: 2, overflowX: 'auto' }}>
-              <MathJax>{"\\[\\text{Cost}(i, j) = \\alpha \\|p_i - p_j\\|_2^2 + \\beta \\|v_i - v_j\\|_2^2\\]"}</MathJax>
+              <MathJax>{"\\[C(x, x') = \\|p - p'\\|_2^2 + \\|\\dot{p} - \\dot{p}'\\|_2^2 + 10\\|\\dot{t} - \\dot{t}'\\|_2^2 + 2\\|\\Delta_{15} - \\Delta'_{15}\\|_2^2 + 2\\|\\Delta_{30} - \\Delta'_{30}\\|_2^2\\]"}</MathJax>
             </Box>
           </Box>
 
           <Box sx={{ mb: 4 }}>
             <Typography variant='h6' component='h3' gutterBottom sx={{ color: 'primary.main' }}>
-              4. Text-Guided Generation
+              4. Text-Guided Generation and Interpolation
             </Typography>
             <Typography variant='body1' sx={{ color: 'text.secondary', lineHeight: 1.8 }}>
-              Using <strong>Motion Matching</strong>, the generative tracking engine navigates the stylistic codebook via a user-provided textual target sequence. Text inputs are trimmed and directly converted into a string of bytes (0-255) corresponding to codebook regions. If a direct transition to a targeted region is physically implausible within the search window, the system uses <strong>Dijkstra&apos;s algorithm</strong> on the plausibility graph to seamlessly inject bridge regions, ensuring continuous tracking aligned with the rhythmic constraints of the text and human kinematics.
+              At runtime, the engine uses the raw byte representation of input text. Since adjacent bytes may represent disjoint codebook regions, the system uses <strong>Dijkstra's algorithm</strong> on the precomputed plausibility graph to seamlessly inject bridge regions. When disjoint segments are appended, a <strong>Perlin Smootherstep polynomial</strong> guarantees <MathJax inline>{"\\(C^2\\)"}</MathJax> continuous easing over a blending window, and complex physical joints rely on <strong>Spherical Linear Interpolation (SLERP)</strong> to prevent structural limb collapse.
+            </Typography>
+          </Box>
+
+          <Box sx={{ mb: 4 }}>
+            <Typography variant='h6' component='h3' gutterBottom sx={{ color: 'primary.main' }}>
+              5. Physics Smoothing and Correction
+            </Typography>
+            <Typography variant='body1' sx={{ color: 'text.secondary', lineHeight: 1.8 }}>
+              Finally, synthesized arrays undergo post-processing to eliminate global vertical drift and prevent horizontal skating. A continuous dot-product alignment prevents boundary tearing by enforcing uniform hemispherical orientation across quaternions. A <strong>Savitzky-Golay quadratic filter</strong> smooths minor noise residuals, while an additive inverse matrix applies identical offset corrections directly to the root to neutralize lateral foot sliding when velocity falls below a minimum confidence threshold.
             </Typography>
           </Box>
         </Box>
